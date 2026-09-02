@@ -1,14 +1,16 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from . import models, schemas, crud, utils
-from .database import engine, get_db
+from . import crud, models, schemas, utils
+from .auth import AuthRateLimitMiddleware
 from .config import settings
+from .database import engine, get_db
 
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="URL Shortener API")
+app.add_middleware(AuthRateLimitMiddleware)
 
 
 @app.get("/")
@@ -16,7 +18,11 @@ def root():
     return {"message": "URL Shortener API funcionando", "docs": "/docs"}
 
 
-@app.post("/shorten", response_model=schemas.URLResponse, status_code=status.HTTP_201_CREATED)
+@app.post(
+    "/shorten",
+    response_model=schemas.URLResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def shorten_url(data: schemas.URLCreate, db: Session = Depends(get_db)):
     short_code = utils.generate_short_code()
     while crud.get_url_by_code(db, short_code):
